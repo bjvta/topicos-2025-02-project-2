@@ -97,42 +97,62 @@ def publicar_en_instagram(texto, image_url):
 # --- LINKEDIN ---
 def publicar_en_linkedin(texto):
     """
-    Publica texto en un perfil de LinkedIn.
+    Publica en LinkedIn en 2 pasos:
+    1. Obtiene el ID del usuario (URN) dinámicamente.
+    2. Crea el post UGC (User Generated Content).
     """
-    author_urn = os.getenv('LINKEDIN_PERSON_URN') 
     token = os.getenv('LINKEDIN_ACCESS_TOKEN')
 
-    if not author_urn or not token:
-        return {"platform": "linkedin", "status": "error", "message": "Faltan credenciales"}
+    if not token:
+        return {"platform": "linkedin", "status": "error", "message": "Falta LINKEDIN_ACCESS_TOKEN en .env"}
 
-    url = "https://api.linkedin.com/v2/ugcPosts"
     headers = {
         'Authorization': f'Bearer {token}',
         'Content-Type': 'application/json',
-        'X-Restli-Protocol-Version': '2.0.0'
-    }
-    payload = {
-        "author": author_urn,
-        "lifecycleState": "PUBLISHED",
-        "specificContent": {
-            "com.linkedin.ugc.ShareContent": {
-                "shareCommentary": {"text": texto},
-                "shareMediaCategory": "NONE"
-            }
-        },
-        "visibility": {"com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC"}
+        'X-Restli-Protocol-Version': '2.0.0' # Obligatorio según documentación
     }
 
     try:
-        response = requests.post(url, headers=headers, json=payload)
-        data = response.json()
-        if response.status_code == 201:
-            return {"platform": "linkedin", "status": "success", "id": data.get("id")}
+        # PASO 1: OBTENER DATOS DEL USUARIO (getUserInfo)
+        # Documentación: https://learn.microsoft.com/en-us/linkedin/consumer/integrations/self-serve/sign-in-with-linkedin-v2#api-request-to-retreive-member-details
+        user_info_url = "https://api.linkedin.com/v2/userinfo"
+        resp_user = requests.get(user_info_url, headers=headers)
+        
+        if resp_user.status_code != 200:
+            return {"platform": "linkedin", "status": "error", "step": "1_user_info", "message": resp_user.json()}
+        
+        user_data = resp_user.json()
+        person_urn = f"urn:li:person:{user_data['sub']}" # Construimos el URN: urn:li:person:ID
+        
+        # PASO 2: PUBLICAR ARTÍCULO (postArticle)
+        post_url = "https://api.linkedin.com/v2/ugcPosts"
+        
+        payload = {
+            "author": person_urn,
+            "lifecycleState": "PUBLISHED",
+            "specificContent": {
+                "com.linkedin.ugc.ShareContent": {
+                    "shareCommentary": {
+                        "text": texto
+                    },
+                    "shareMediaCategory": "NONE"
+                }
+            },
+            "visibility": {
+                "com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC"
+            }
+        }
+
+        resp_post = requests.post(post_url, headers=headers, json=payload)
+        post_data = resp_post.json()
+
+        if resp_post.status_code == 201:
+            return {"platform": "linkedin", "status": "success", "id": post_data.get("id")}
         else:
-            return {"platform": "linkedin", "status": "error", "message": data}
+             return {"platform": "linkedin", "status": "error", "step": "2_publish", "message": post_data}
+
     except Exception as e:
         return {"platform": "linkedin", "status": "error", "message": str(e)}
-
 # --- WHATSAPP (Twilio) ---
 def publicar_en_whatsapp(texto, numero_destino):
     """

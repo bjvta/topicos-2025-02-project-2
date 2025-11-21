@@ -89,6 +89,7 @@ class PublicarContenidoView(APIView):
             resultado = publicar_en_instagram(pub.contenido_adaptado, image_url)
 
         elif pub.plataforma == 'linkedin':
+            # Ya no necesitamos pasar parámetros extra, solo el texto
             resultado = publicar_en_linkedin(pub.contenido_adaptado)
             
         elif pub.plataforma == 'tiktok':
