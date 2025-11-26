@@ -1,3 +1,0 @@
-fastapi
-uvicorn
-# ollama (instalación manual si se usa LLM real)
